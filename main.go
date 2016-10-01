@@ -22,8 +22,11 @@ import (
 )
 
 const (
-	chars      string = "abcdefghijklmnopqrstuvwxyz0123456789"
-	emailRegEx string = "^(((([a-zA-Z]|\\d|[!#\\$%&'\\*\\+\\-\\/=\\?\\^_`{\\|}~]|[\\x{00A0}-\\x{D7FF}\\x{F900}-\\x{FDCF}\\x{FDF0}-\\x{FFEF}])+(\\.([a-zA-Z]|\\d|[!#\\$%&'\\*\\+\\-\\/=\\?\\^_`{\\|}~]|[\\x{00A0}-\\x{D7FF}\\x{F900}-\\x{FDCF}\\x{FDF0}-\\x{FFEF}])+)*)|((\\x22)((((\\x20|\\x09)*(\\x0d\\x0a))?(\\x20|\\x09)+)?(([\\x01-\\x08\\x0b\\x0c\\x0e-\\x1f\\x7f]|\\x21|[\\x23-\\x5b]|[\\x5d-\\x7e]|[\\x{00A0}-\\x{D7FF}\\x{F900}-\\x{FDCF}\\x{FDF0}-\\x{FFEF}])|(\\([\\x01-\\x09\\x0b\\x0c\\x0d-\\x7f]|[\\x{00A0}-\\x{D7FF}\\x{F900}-\\x{FDCF}\\x{FDF0}-\\x{FFEF}]))))*(((\\x20|\\x09)*(\\x0d\\x0a))?(\\x20|\\x09)+)?(\\x22)))@((([a-zA-Z]|\\d|[\\x{00A0}-\\x{D7FF}\\x{F900}-\\x{FDCF}\\x{FDF0}-\\x{FFEF}])|(([a-zA-Z]|\\d|[\\x{00A0}-\\x{D7FF}\\x{F900}-\\x{FDCF}\\x{FDF0}-\\x{FFEF}])([a-zA-Z]|\\d|-|\\.|_|~|[\\x{00A0}-\\x{D7FF}\\x{F900}-\\x{FDCF}\\x{FDF0}-\\x{FFEF}])*([a-zA-Z]|\\d|[\\x{00A0}-\\x{D7FF}\\x{F900}-\\x{FDCF}\\x{FDF0}-\\x{FFEF}])))\\.)+(([a-zA-Z]|[\\x{00A0}-\\x{D7FF}\\x{F900}-\\x{FDCF}\\x{FDF0}-\\x{FFEF}])|(([a-zA-Z]|[\\x{00A0}-\\x{D7FF}\\x{F900}-\\x{FDCF}\\x{FDF0}-\\x{FFEF}])([a-zA-Z]|\\d|-|\\.|_|~|[\\x{00A0}-\\x{D7FF}\\x{F900}-\\x{FDCF}\\x{FDF0}-\\x{FFEF}])*([a-zA-Z]|[\\x{00A0}-\\x{D7FF}\\x{F900}-\\x{FDCF}\\x{FDF0}-\\x{FFEF}])))\\.?$"
+	chars            string = "abcdefghijklmnopqrstuvwxyz0123456789"
+	emailRegEx       string = "^(((([a-zA-Z]|\\d|[!#\\$%&'\\*\\+\\-\\/=\\?\\^_`{\\|}~]|[\\x{00A0}-\\x{D7FF}\\x{F900}-\\x{FDCF}\\x{FDF0}-\\x{FFEF}])+(\\.([a-zA-Z]|\\d|[!#\\$%&'\\*\\+\\-\\/=\\?\\^_`{\\|}~]|[\\x{00A0}-\\x{D7FF}\\x{F900}-\\x{FDCF}\\x{FDF0}-\\x{FFEF}])+)*)|((\\x22)((((\\x20|\\x09)*(\\x0d\\x0a))?(\\x20|\\x09)+)?(([\\x01-\\x08\\x0b\\x0c\\x0e-\\x1f\\x7f]|\\x21|[\\x23-\\x5b]|[\\x5d-\\x7e]|[\\x{00A0}-\\x{D7FF}\\x{F900}-\\x{FDCF}\\x{FDF0}-\\x{FFEF}])|(\\([\\x01-\\x09\\x0b\\x0c\\x0d-\\x7f]|[\\x{00A0}-\\x{D7FF}\\x{F900}-\\x{FDCF}\\x{FDF0}-\\x{FFEF}]))))*(((\\x20|\\x09)*(\\x0d\\x0a))?(\\x20|\\x09)+)?(\\x22)))@((([a-zA-Z]|\\d|[\\x{00A0}-\\x{D7FF}\\x{F900}-\\x{FDCF}\\x{FDF0}-\\x{FFEF}])|(([a-zA-Z]|\\d|[\\x{00A0}-\\x{D7FF}\\x{F900}-\\x{FDCF}\\x{FDF0}-\\x{FFEF}])([a-zA-Z]|\\d|-|\\.|_|~|[\\x{00A0}-\\x{D7FF}\\x{F900}-\\x{FDCF}\\x{FDF0}-\\x{FFEF}])*([a-zA-Z]|\\d|[\\x{00A0}-\\x{D7FF}\\x{F900}-\\x{FDCF}\\x{FDF0}-\\x{FFEF}])))\\.)+(([a-zA-Z]|[\\x{00A0}-\\x{D7FF}\\x{F900}-\\x{FDCF}\\x{FDF0}-\\x{FFEF}])|(([a-zA-Z]|[\\x{00A0}-\\x{D7FF}\\x{F900}-\\x{FDCF}\\x{FDF0}-\\x{FFEF}])([a-zA-Z]|\\d|-|\\.|_|~|[\\x{00A0}-\\x{D7FF}\\x{F900}-\\x{FDCF}\\x{FDF0}-\\x{FFEF}])*([a-zA-Z]|[\\x{00A0}-\\x{D7FF}\\x{F900}-\\x{FDCF}\\x{FDF0}-\\x{FFEF}])))\\.?$"
+	usersBucket      string = "users"
+	sharedKeysBucket string = "shared_keys"
+	database         string = "appy.db"
 )
 
 //https://chart.googleapis.com/chart?chs=150x150&cht=qr&chl=cool&choe=UTF-8
@@ -55,16 +58,23 @@ type User struct {
 
 func main() {
 	port := os.Getenv("PORT")
+
+	if port == "" {
+		panic("Please provide a proper port")
+	}
+
 	//database
-	db, err := bolt.Open("appy.db", 0600, &bolt.Options{Timeout: 1 * time.Second})
+	db, err := bolt.Open(database, 0600, &bolt.Options{Timeout: 1 * time.Second})
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer db.Close()
 
 	db.Update(func(tx *bolt.Tx) error {
-		_, err := tx.CreateBucketIfNotExists([]byte("Users"))
-		return err
+		tx.CreateBucketIfNotExists([]byte(usersBucket))
+		tx.CreateBucketIfNotExists([]byte(sharedKeysBucket))
+
+		return nil
 	})
 
 	e := echo.New()
@@ -83,7 +93,7 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		println(u.Email)
+
 		//validate data
 		name := strings.Trim(u.Name, " ")
 		email := strings.Trim(strings.ToLower(u.Email), " ")
@@ -100,11 +110,12 @@ func main() {
 			}
 		}
 		if (isEmail(email) && len(password) >= 6 && len(name) >= 6) == false {
-			c.JSON(http.StatusBadRequest, &appResponse{"Please provide valid details", "", "error"})
+			c.JSON(http.StatusBadRequest, &appResponse{"Please provide valid details, proper email, name and password should be more than 6 chars", "", "error"})
+
 			return nil
 		}
 		hash, _ := scrypt.Key([]byte(password), salt, 16384, 8, 1, 32)
-		sharedSecretKey := randomString(12)
+		sharedSecretKey := newSharedKey(db, 12)
 
 		user := User{
 			Name:            name,
@@ -129,8 +140,8 @@ func main() {
 
 func exists(db *bolt.DB, email string) (User, error) {
 	appUser := User{}
-	userExistsErr := db.View(func(tx *bolt.Tx) error {
-		b := tx.Bucket([]byte("Users"))
+	existsErr := db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(usersBucket))
 		v := b.Get([]byte(email))
 		if v != nil {
 			return json.Unmarshal(v, &appUser)
@@ -139,17 +150,36 @@ func exists(db *bolt.DB, email string) (User, error) {
 		return errors.New("Key does not exists in Users")
 	})
 
-	if userExistsErr == nil {
+	if existsErr == nil {
 		return appUser, nil
 	}
 
-	return appUser, userExistsErr
+	return appUser, existsErr
+}
+
+func keyExists(db *bolt.DB, bucket string, key string) bool {
+	existsErr := db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(bucket))
+		v := b.Get([]byte(key))
+
+		if v == nil {
+			return nil
+		}
+
+		return errors.New("Key does not exist")
+	})
+
+	if existsErr == nil {
+		return true
+	}
+
+	return false
 }
 
 func (user *User) save(db *bolt.DB) error {
 	// Store the user model in the user bucket using the username as the key.
 	err := db.Update(func(tx *bolt.Tx) error {
-		b, err := tx.CreateBucketIfNotExists([]byte("Users"))
+		b, err := tx.CreateBucket([]byte(usersBucket))
 		if err != nil {
 			return err
 		}
@@ -169,11 +199,34 @@ func isEmail(str string) bool {
 	return rxEmail.MatchString(str)
 }
 
+func newSharedKey(db *bolt.DB, strlen int) string {
+	rstr := randomString(strlen)
+	if keyExists(db, sharedKeysBucket, rstr) {
+		return newSharedKey(db, strlen)
+	}
+
+	err := db.Update(func(tx *bolt.Tx) error {
+		b, err := tx.CreateBucket([]byte(sharedKeysBucket))
+		if err != nil {
+			return err
+		}
+
+		return b.Put([]byte(rstr), []byte(rstr))
+	})
+
+	if err != nil {
+		return newSharedKey(db, strlen)
+	}
+
+	return rstr
+}
+
 func randomString(strlen int) string {
 	mrand.Seed(time.Now().UTC().UnixNano())
 	result := make([]byte, strlen)
 	for i := 0; i < strlen; i++ {
 		result[i] = chars[mrand.Intn(len(chars))]
 	}
+
 	return string(result)
 }
