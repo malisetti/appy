@@ -135,7 +135,8 @@ func main() {
 			created := createCouchbaseUser(u.Name, u.Password, u.Email)
 			if created != nil {
 				//delete the user from bolt
-				user.deleteUser(db)
+				deleteKey(db, usersBucket, user.Email)
+				deleteKey(db, sharedKeysBucket, user.SharedSecretKey)
 				c.JSON(http.StatusBadRequest, &appResponse{created.Error(), "", "error"})
 			} else {
 				c.JSON(http.StatusBadRequest, &appResponse{"User created, please use key to connect", sharedSecretKey, "success"})
@@ -205,15 +206,15 @@ func (user *User) save(db *bolt.DB) error {
 	return err
 }
 
-func (user *User) deleteUser(db *bolt.DB) error {
+func deleteKey(db *bolt.DB, bucket, key string) error {
 	// Store the user model in the user bucket using the username as the key.
 	err := db.Update(func(tx *bolt.Tx) error {
-		b, err := tx.CreateBucket([]byte(usersBucket))
+		b, err := tx.CreateBucket([]byte(bucket))
 		if err != nil {
 			return err
 		}
 
-		return b.Delete([]byte(user.Email))
+		return b.Delete([]byte(key))
 	})
 
 	return err
