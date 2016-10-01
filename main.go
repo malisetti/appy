@@ -38,10 +38,16 @@ type appResponse struct {
 	Status          string `json:"status"`
 }
 
+type inputUser struct {
+	Name     string `json:"name" form:"name"`
+	Email    string `json:"email" form:"email"`
+	Password string `json:"password" form:"password"`
+}
+
 // User is app user
 type User struct {
-	Name            string
-	Email           string
+	Name            string `json:"name" form:"name"`
+	Email           string `json:"email" form:"email"`
 	Password        []byte
 	Salt            []byte
 	SharedSecretKey string
@@ -56,6 +62,11 @@ func main() {
 	}
 	defer db.Close()
 
+	db.Update(func(tx *bolt.Tx) error {
+		_, err := tx.CreateBucketIfNotExists([]byte("Users"))
+		return err
+	})
+
 	e := echo.New()
 
 	e.Use(middleware.Logger())
@@ -63,31 +74,32 @@ func main() {
 	e.Use(middleware.Gzip())
 
 	e.Post("/user", func(c echo.Context) error {
+		u := new(inputUser)
+		if err := c.Bind(u); err != nil {
+			return err
+		}
 		salt := make([]byte, 32)
 		_, err := io.ReadFull(rand.Reader, salt)
 		if err != nil {
 			log.Fatal(err)
 		}
+		println(u.Email)
 		//validate data
-		name := c.FormValue("name")
-		name = strings.Trim(name, " ")
-		email := c.FormValue("email")
-		email = strings.Trim(strings.ToLower(email), " ")
-		password := c.FormValue("password")
-		password = strings.Trim(password, " ")
+		name := strings.Trim(u.Name, " ")
+		email := strings.Trim(strings.ToLower(u.Email), " ")
+		password := strings.Trim(u.Password, " ")
 		existingUser, err := exists(db, email)
-		if isEmail(email) && len(password) > 6 && err == nil {
-			//check for password validation
-			hash, _ := scrypt.Key([]byte(existingUser.Password), existingUser.Salt, 16384, 8, 1, 32)
-			if bytes.Equal(hash, existingUser.Password) {
-				c.JSON(http.StatusBadRequest, &appResponse{"User created, please use key to connect", existingUser.SharedSecretKey, "success"})
-			} else {
-				c.JSON(http.StatusBadRequest, &appResponse{"Please provide valid details", "", "error"})
-			}
 
-			return nil
+		if isEmail(email) && len(password) >= 6 && err == nil {
+			//check for password validation
+			hash, _ := scrypt.Key([]byte(password), existingUser.Salt, 16384, 8, 1, 32)
+			if bytes.Equal(hash, existingUser.Password) {
+				c.JSON(http.StatusBadRequest, &appResponse{"User logged in, please use key to connect", existingUser.SharedSecretKey, "success"})
+
+				return nil
+			}
 		}
-		if (isEmail(email) && len(password) > 6 && len(name) > 6) == false {
+		if (isEmail(email) && len(password) >= 6 && len(name) >= 6) == false {
 			c.JSON(http.StatusBadRequest, &appResponse{"Please provide valid details", "", "error"})
 			return nil
 		}
@@ -116,8 +128,8 @@ func main() {
 }
 
 func exists(db *bolt.DB, email string) (User, error) {
-	var appUser User
-	userExists := db.View(func(tx *bolt.Tx) error {
+	appUser := User{}
+	userExistsErr := db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte("Users"))
 		v := b.Get([]byte(email))
 		if v != nil {
@@ -127,11 +139,11 @@ func exists(db *bolt.DB, email string) (User, error) {
 		return errors.New("Key does not exists in Users")
 	})
 
-	if userExists == nil {
+	if userExistsErr == nil {
 		return appUser, nil
 	}
 
-	return appUser, userExists
+	return appUser, userExistsErr
 }
 
 func (user *User) save(db *bolt.DB) error {
