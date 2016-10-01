@@ -9,6 +9,7 @@ import (
 	"log"
 	mrand "math/rand"
 	"net/http"
+	"net/url"
 	"os"
 	"regexp"
 	"strings"
@@ -22,11 +23,14 @@ import (
 )
 
 const (
-	chars            string = "abcdefghijklmnopqrstuvwxyz0123456789"
-	emailRegEx       string = "^(((([a-zA-Z]|\\d|[!#\\$%&'\\*\\+\\-\\/=\\?\\^_`{\\|}~]|[\\x{00A0}-\\x{D7FF}\\x{F900}-\\x{FDCF}\\x{FDF0}-\\x{FFEF}])+(\\.([a-zA-Z]|\\d|[!#\\$%&'\\*\\+\\-\\/=\\?\\^_`{\\|}~]|[\\x{00A0}-\\x{D7FF}\\x{F900}-\\x{FDCF}\\x{FDF0}-\\x{FFEF}])+)*)|((\\x22)((((\\x20|\\x09)*(\\x0d\\x0a))?(\\x20|\\x09)+)?(([\\x01-\\x08\\x0b\\x0c\\x0e-\\x1f\\x7f]|\\x21|[\\x23-\\x5b]|[\\x5d-\\x7e]|[\\x{00A0}-\\x{D7FF}\\x{F900}-\\x{FDCF}\\x{FDF0}-\\x{FFEF}])|(\\([\\x01-\\x09\\x0b\\x0c\\x0d-\\x7f]|[\\x{00A0}-\\x{D7FF}\\x{F900}-\\x{FDCF}\\x{FDF0}-\\x{FFEF}]))))*(((\\x20|\\x09)*(\\x0d\\x0a))?(\\x20|\\x09)+)?(\\x22)))@((([a-zA-Z]|\\d|[\\x{00A0}-\\x{D7FF}\\x{F900}-\\x{FDCF}\\x{FDF0}-\\x{FFEF}])|(([a-zA-Z]|\\d|[\\x{00A0}-\\x{D7FF}\\x{F900}-\\x{FDCF}\\x{FDF0}-\\x{FFEF}])([a-zA-Z]|\\d|-|\\.|_|~|[\\x{00A0}-\\x{D7FF}\\x{F900}-\\x{FDCF}\\x{FDF0}-\\x{FFEF}])*([a-zA-Z]|\\d|[\\x{00A0}-\\x{D7FF}\\x{F900}-\\x{FDCF}\\x{FDF0}-\\x{FFEF}])))\\.)+(([a-zA-Z]|[\\x{00A0}-\\x{D7FF}\\x{F900}-\\x{FDCF}\\x{FDF0}-\\x{FFEF}])|(([a-zA-Z]|[\\x{00A0}-\\x{D7FF}\\x{F900}-\\x{FDCF}\\x{FDF0}-\\x{FFEF}])([a-zA-Z]|\\d|-|\\.|_|~|[\\x{00A0}-\\x{D7FF}\\x{F900}-\\x{FDCF}\\x{FDF0}-\\x{FFEF}])*([a-zA-Z]|[\\x{00A0}-\\x{D7FF}\\x{F900}-\\x{FDCF}\\x{FDF0}-\\x{FFEF}])))\\.?$"
-	usersBucket      string = "users"
-	sharedKeysBucket string = "shared_keys"
-	database         string = "appy.db"
+	chars              string = "abcdefghijklmnopqrstuvwxyz0123456789"
+	emailRegEx         string = "^(((([a-zA-Z]|\\d|[!#\\$%&'\\*\\+\\-\\/=\\?\\^_`{\\|}~]|[\\x{00A0}-\\x{D7FF}\\x{F900}-\\x{FDCF}\\x{FDF0}-\\x{FFEF}])+(\\.([a-zA-Z]|\\d|[!#\\$%&'\\*\\+\\-\\/=\\?\\^_`{\\|}~]|[\\x{00A0}-\\x{D7FF}\\x{F900}-\\x{FDCF}\\x{FDF0}-\\x{FFEF}])+)*)|((\\x22)((((\\x20|\\x09)*(\\x0d\\x0a))?(\\x20|\\x09)+)?(([\\x01-\\x08\\x0b\\x0c\\x0e-\\x1f\\x7f]|\\x21|[\\x23-\\x5b]|[\\x5d-\\x7e]|[\\x{00A0}-\\x{D7FF}\\x{F900}-\\x{FDCF}\\x{FDF0}-\\x{FFEF}])|(\\([\\x01-\\x09\\x0b\\x0c\\x0d-\\x7f]|[\\x{00A0}-\\x{D7FF}\\x{F900}-\\x{FDCF}\\x{FDF0}-\\x{FFEF}]))))*(((\\x20|\\x09)*(\\x0d\\x0a))?(\\x20|\\x09)+)?(\\x22)))@((([a-zA-Z]|\\d|[\\x{00A0}-\\x{D7FF}\\x{F900}-\\x{FDCF}\\x{FDF0}-\\x{FFEF}])|(([a-zA-Z]|\\d|[\\x{00A0}-\\x{D7FF}\\x{F900}-\\x{FDCF}\\x{FDF0}-\\x{FFEF}])([a-zA-Z]|\\d|-|\\.|_|~|[\\x{00A0}-\\x{D7FF}\\x{F900}-\\x{FDCF}\\x{FDF0}-\\x{FFEF}])*([a-zA-Z]|\\d|[\\x{00A0}-\\x{D7FF}\\x{F900}-\\x{FDCF}\\x{FDF0}-\\x{FFEF}])))\\.)+(([a-zA-Z]|[\\x{00A0}-\\x{D7FF}\\x{F900}-\\x{FDCF}\\x{FDF0}-\\x{FFEF}])|(([a-zA-Z]|[\\x{00A0}-\\x{D7FF}\\x{F900}-\\x{FDCF}\\x{FDF0}-\\x{FFEF}])([a-zA-Z]|\\d|-|\\.|_|~|[\\x{00A0}-\\x{D7FF}\\x{F900}-\\x{FDCF}\\x{FDF0}-\\x{FFEF}])*([a-zA-Z]|[\\x{00A0}-\\x{D7FF}\\x{F900}-\\x{FDCF}\\x{FDF0}-\\x{FFEF}])))\\.?$"
+	usersBucket        string = "users"
+	sharedKeysBucket   string = "shared_keys"
+	database           string = "appy.db"
+	couchbaseAdminAPI  string = "http://127.0.0.1:4985"
+	couchbaseAdminUser string = "admin"
+	couchbaseAdminPass string = "appy"
 )
 
 //https://chart.googleapis.com/chart?chs=150x150&cht=qr&chl=cool&choe=UTF-8
@@ -128,7 +132,14 @@ func main() {
 		if err != nil {
 			c.JSON(http.StatusBadRequest, &appResponse{"Please provide valid details", "", "error"})
 		} else {
-			c.JSON(http.StatusBadRequest, &appResponse{"User created, please use key to connect", sharedSecretKey, "success"})
+			created := createCouchbaseUser(u.Name, u.Password, u.Email)
+			if created != nil {
+				//delete the user from bolt
+				user.deleteUser(db)
+				c.JSON(http.StatusBadRequest, &appResponse{created.Error(), "", "error"})
+			} else {
+				c.JSON(http.StatusBadRequest, &appResponse{"User created, please use key to connect", sharedSecretKey, "success"})
+			}
 		}
 
 		return nil
@@ -192,6 +203,46 @@ func (user *User) save(db *bolt.DB) error {
 	})
 
 	return err
+}
+
+func (user *User) deleteUser(db *bolt.DB) error {
+	// Store the user model in the user bucket using the username as the key.
+	err := db.Update(func(tx *bolt.Tx) error {
+		b, err := tx.CreateBucket([]byte(usersBucket))
+		if err != nil {
+			return err
+		}
+
+		return b.Delete([]byte(user.Email))
+	})
+
+	return err
+}
+
+func createCouchbaseUser(name, password, email string) error {
+	userCreationURL := couchbaseAdminAPI + "/appydb/_user/"
+	client := &http.Client{}
+	v := url.Values{}
+	v.Set("name", name)
+	v.Set("password", password)
+	v.Set("email", email)
+	req, err := http.NewRequest(http.MethodPost, userCreationURL, strings.NewReader(v.Encode()))
+	req.SetBasicAuth(couchbaseAdminUser, couchbaseAdminPass)
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Fatal(err)
+
+		return err
+	}
+
+	switch resp.StatusCode {
+	case http.StatusOK:
+		return nil
+	case http.StatusConflict:
+		return errors.New("A user with this name already exists")
+	default:
+		return nil
+	}
 }
 
 func isEmail(str string) bool {
