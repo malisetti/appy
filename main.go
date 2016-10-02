@@ -132,12 +132,12 @@ func main() {
 		if err != nil {
 			c.JSON(http.StatusBadRequest, &appResponse{"Please provide valid details", "", "error"})
 		} else {
-			created := createCouchbaseUser(u.Name, u.Password, u.Email)
-			if created != nil {
+			createErr := createCouchbaseUser(u.Email, u.Password)
+			if createErr != nil {
 				//delete the user from bolt
 				deleteKey(db, usersBucket, user.Email)
 				deleteKey(db, sharedKeysBucket, user.SharedSecretKey)
-				c.JSON(http.StatusBadRequest, &appResponse{created.Error(), "", "error"})
+				c.JSON(http.StatusBadRequest, &appResponse{createErr.Error(), "", "error"})
 			} else {
 				c.JSON(http.StatusBadRequest, &appResponse{"User created, please use key to connect", sharedSecretKey, "success"})
 			}
@@ -220,14 +220,19 @@ func deleteKey(db *bolt.DB, bucket, key string) error {
 	return err
 }
 
-func createCouchbaseUser(name, password, email string) error {
+func createCouchbaseUser(email, password string) error {
 	userCreationURL := couchbaseAdminAPI + "/appydb/_user/"
-	client := &http.Client{}
+	timeout := time.Duration(1 * time.Second)
+	client := &http.Client{
+		Timeout: timeout,
+	}
 	v := url.Values{}
-	v.Set("name", name)
+	v.Set("name", email)
 	v.Set("password", password)
 	v.Set("email", email)
-	req, err := http.NewRequest(http.MethodPost, userCreationURL, strings.NewReader(v.Encode()))
+	data, _ := json.Marshal(v)
+	req, err := http.NewRequest(http.MethodPost, userCreationURL, bytes.NewBuffer(data))
+	req.Header.Set("Content-Type", "application/json")
 	req.SetBasicAuth(couchbaseAdminUser, couchbaseAdminPass)
 	resp, err := client.Do(req)
 	if err != nil {
