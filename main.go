@@ -167,7 +167,6 @@ func main() {
 		existingUser, err := exists(db, email)
 
 		if isEmail(email) && len(password) >= 6 && err == nil {
-			println("Trying to login")
 			//check for password validation
 			hash, _ := scrypt.Key([]byte(password), existingUser.Salt, 16384, 8, 1, 32)
 			if bytes.Equal(hash, existingUser.Password) {
@@ -196,7 +195,6 @@ func main() {
 		if err != nil {
 			c.JSON(http.StatusOK, &appResponse{"Please provide valid details", "", "error"})
 		} else {
-			println("creating cb users")
 			//couchbase user for child
 			createCouchbaseUser(email, password)
 			//couchbase user for parent
