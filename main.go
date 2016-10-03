@@ -127,7 +127,7 @@ func main() {
 				return errors.New("Key could not be found")
 			}
 
-			return nil
+			return errors.New("Key could not be found")
 		})
 
 		if existsErr != nil {
