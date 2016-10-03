@@ -132,9 +132,9 @@ func main() {
 
 		if existsErr != nil {
 			c.JSON(http.StatusNotFound, &userResponse{existsErr.Error(), u, "error"})
+		} else {
+			c.JSON(http.StatusOK, &userResponse{"Please see the user details", u, "success"})
 		}
-
-		c.JSON(http.StatusOK, &userResponse{"Please see the user details", u, "success"})
 
 		return nil
 	})
