@@ -9,7 +9,6 @@ import (
 	"log"
 	mrand "math/rand"
 	"net/http"
-	"net/url"
 	"os"
 	"regexp"
 	"strings"
@@ -283,10 +282,10 @@ func createCouchbaseUser(email, password string) error {
 	client := &http.Client{
 		Timeout: timeout,
 	}
-	v := url.Values{}
-	v.Set("name", email)
-	v.Set("password", password)
-	v.Set("email", email)
+	v := make(map[string]string)
+	v["name"] = email
+	v["password"] = password
+	v["email"] = email
 	data, _ := json.Marshal(v)
 	req, err := http.NewRequest(http.MethodPost, userCreationURL, bytes.NewBuffer(data))
 	req.Header.Set("Content-Type", "application/json")
