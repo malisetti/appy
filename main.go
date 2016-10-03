@@ -45,10 +45,22 @@ type appResponse struct {
 	Status          string `json:"status"`
 }
 
+type userResponse struct {
+	Message    string     `json:"message"`
+	OutputUser outputUser `json:"user"`
+	Status     string     `json:"status"`
+}
+
 type inputUser struct {
 	Name     string `json:"name" form:"name"`
 	Email    string `json:"email" form:"email"`
 	Password string `json:"password" form:"password"`
+}
+
+type outputUser struct {
+	Name            string `json:"name"`
+	Email           string `json:"email"`
+	SharedSecretKey string `json:"key"`
 }
 
 // User is app user
@@ -87,7 +99,46 @@ func main() {
 	e.Use(middleware.Recover())
 	e.Use(middleware.Gzip())
 
-	e.Post("/user", func(c echo.Context) error {
+	e.Get("/users/:sharedKey", func(c echo.Context) error {
+		sharedKey := c.Param("sharedKey")
+		u := outputUser{}
+		err := db.View(func(tx *bolt.Tx) error {
+			b := tx.Bucket([]byte(sharedKeysBucket))
+			v := b.Get([]byte(sharedKey))
+
+			if v != nil {
+				b2 := tx.Bucket([]byte(usersBucket))
+				v2 := b2.Get(v)
+				if v2 != nil {
+					appUser := User{}
+					err := json.Unmarshal(v2, &appUser)
+
+					if err == nil {
+						u.Email = appUser.Email
+						u.Name = appUser.Name
+						u.SharedSecretKey = appUser.SharedSecretKey
+
+						return nil
+					}
+
+					return err
+				}
+			}
+
+			return nil
+
+		})
+
+		if err != nil {
+			c.JSON(http.StatusBadRequest, &userResponse{err.Error(), u, "error"})
+		}
+
+		c.JSON(http.StatusBadRequest, &userResponse{"Please see the user details", u, "success"})
+
+		return nil
+	})
+
+	e.Post("/users", func(c echo.Context) error {
 		u := new(inputUser)
 		if err := c.Bind(u); err != nil {
 			return err
@@ -119,7 +170,7 @@ func main() {
 			return nil
 		}
 		hash, _ := scrypt.Key([]byte(password), salt, 16384, 8, 1, 32)
-		sharedSecretKey := newSharedKey(db, 12)
+		sharedSecretKey := newSharedKey(db, 12, email)
 
 		user := User{
 			Name:            name,
@@ -132,15 +183,12 @@ func main() {
 		if err != nil {
 			c.JSON(http.StatusBadRequest, &appResponse{"Please provide valid details", "", "error"})
 		} else {
-			createErr := createCouchbaseUser(u.Email, u.Password)
-			if createErr != nil {
-				//delete the user from bolt
-				deleteKey(db, usersBucket, user.Email)
-				deleteKey(db, sharedKeysBucket, user.SharedSecretKey)
-				c.JSON(http.StatusBadRequest, &appResponse{createErr.Error(), "", "error"})
-			} else {
-				c.JSON(http.StatusBadRequest, &appResponse{"User created, please use key to connect", sharedSecretKey, "success"})
-			}
+			//couchbase user for child
+			createCouchbaseUser(email, password)
+			//couchbase user for parent
+			createCouchbaseUser(sharedSecretKey, sharedSecretKey)
+
+			c.JSON(http.StatusBadRequest, &appResponse{"User created, please use key to connect", sharedSecretKey, "success"})
 		}
 
 		return nil
@@ -256,10 +304,10 @@ func isEmail(str string) bool {
 	return rxEmail.MatchString(str)
 }
 
-func newSharedKey(db *bolt.DB, strlen int) string {
+func newSharedKey(db *bolt.DB, strlen int, email string) string {
 	rstr := randomString(strlen)
 	if keyExists(db, sharedKeysBucket, rstr) {
-		return newSharedKey(db, strlen)
+		return newSharedKey(db, strlen, email)
 	}
 
 	err := db.Update(func(tx *bolt.Tx) error {
@@ -272,7 +320,7 @@ func newSharedKey(db *bolt.DB, strlen int) string {
 	})
 
 	if err != nil {
-		return newSharedKey(db, strlen)
+		return newSharedKey(db, strlen, email)
 	}
 
 	return rstr
