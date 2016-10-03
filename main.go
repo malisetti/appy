@@ -157,7 +157,7 @@ func main() {
 		salt := make([]byte, 32)
 		_, err := io.ReadFull(rand.Reader, salt)
 		if err != nil {
-			log.Fatal(err)
+			return err
 		}
 
 		//validate data
@@ -290,8 +290,6 @@ func createCouchbaseUser(email, password string) error {
 	req.SetBasicAuth(couchbaseAdminUser, couchbaseAdminPass)
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Fatal(err)
-
 		return err
 	}
 
