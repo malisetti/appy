@@ -29,8 +29,8 @@ const (
 	sharedKeysBucket   string = "shared_keys"
 	database           string = "appy.db"
 	couchbaseAdminAPI  string = "http://127.0.0.1:4985"
-	couchbaseAdminUser string = "admin"
-	couchbaseAdminPass string = "appy"
+	couchbaseAdminUser string = "appyadmin"
+	couchbaseAdminPass string = "appyadmin"
 )
 
 //https://chart.googleapis.com/chart?chs=150x150&cht=qr&chl=cool&choe=UTF-8
@@ -51,7 +51,8 @@ type userResponse struct {
 	Status     string     `json:"status"`
 }
 
-type inputUser struct {
+//InputUser is to bind the user creation request
+type InputUser struct {
 	Name     string `json:"name" form:"name"`
 	Email    string `json:"email" form:"email"`
 	Password string `json:"password" form:"password"`
@@ -102,7 +103,7 @@ func main() {
 	e.Get("/users/:sharedKey", func(c echo.Context) error {
 		sharedKey := c.Param("sharedKey")
 		u := outputUser{}
-		err := db.View(func(tx *bolt.Tx) error {
+		existsErr := db.View(func(tx *bolt.Tx) error {
 			b := tx.Bucket([]byte(sharedKeysBucket))
 			v := b.Get([]byte(sharedKey))
 
@@ -123,26 +124,37 @@ func main() {
 
 					return err
 				}
+
+				return errors.New("Key could not be found")
 			}
 
 			return nil
-
 		})
 
-		if err != nil {
-			c.JSON(http.StatusBadRequest, &userResponse{err.Error(), u, "error"})
+		if existsErr != nil {
+			c.JSON(http.StatusNotFound, &userResponse{existsErr.Error(), u, "error"})
 		}
 
-		c.JSON(http.StatusBadRequest, &userResponse{"Please see the user details", u, "success"})
+		c.JSON(http.StatusOK, &userResponse{"Please see the user details", u, "success"})
 
 		return nil
 	})
 
 	e.Post("/users", func(c echo.Context) error {
-		u := new(inputUser)
-		if err := c.Bind(u); err != nil {
-			return err
+		var u InputUser
+		ct := c.Request().Header().Get("Content-Type")
+		if ct == "application/json" {
+			decoder := json.NewDecoder(c.Request().Body())
+			err := decoder.Decode(&u)
+			if err != nil {
+				return err
+			}
+		} else {
+			if err := c.Bind(u); err != nil {
+				return err
+			}
 		}
+
 		salt := make([]byte, 32)
 		_, err := io.ReadFull(rand.Reader, salt)
 		if err != nil {
@@ -156,10 +168,11 @@ func main() {
 		existingUser, err := exists(db, email)
 
 		if isEmail(email) && len(password) >= 6 && err == nil {
+			println("Trying to login")
 			//check for password validation
 			hash, _ := scrypt.Key([]byte(password), existingUser.Salt, 16384, 8, 1, 32)
 			if bytes.Equal(hash, existingUser.Password) {
-				c.JSON(http.StatusBadRequest, &appResponse{"User logged in, please use key to connect", existingUser.SharedSecretKey, "success"})
+				c.JSON(http.StatusOK, &appResponse{"User logged in, please use key to connect", existingUser.SharedSecretKey, "success"})
 
 				return nil
 			}
@@ -169,6 +182,7 @@ func main() {
 
 			return nil
 		}
+
 		hash, _ := scrypt.Key([]byte(password), salt, 16384, 8, 1, 32)
 		sharedSecretKey := newSharedKey(db, 12, email)
 
@@ -181,14 +195,15 @@ func main() {
 		}
 		err = user.save(db)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, &appResponse{"Please provide valid details", "", "error"})
+			c.JSON(http.StatusOK, &appResponse{"Please provide valid details", "", "error"})
 		} else {
+			println("creating cb users")
 			//couchbase user for child
 			createCouchbaseUser(email, password)
 			//couchbase user for parent
 			createCouchbaseUser(sharedSecretKey, sharedSecretKey)
 
-			c.JSON(http.StatusBadRequest, &appResponse{"User created, please use key to connect", sharedSecretKey, "success"})
+			c.JSON(http.StatusCreated, &appResponse{"User created, please use key to connect", sharedSecretKey, "success"})
 		}
 
 		return nil
@@ -222,7 +237,7 @@ func keyExists(db *bolt.DB, bucket string, key string) bool {
 		b := tx.Bucket([]byte(bucket))
 		v := b.Get([]byte(key))
 
-		if v == nil {
+		if v != nil {
 			return nil
 		}
 
@@ -239,10 +254,7 @@ func keyExists(db *bolt.DB, bucket string, key string) bool {
 func (user *User) save(db *bolt.DB) error {
 	// Store the user model in the user bucket using the username as the key.
 	err := db.Update(func(tx *bolt.Tx) error {
-		b, err := tx.CreateBucket([]byte(usersBucket))
-		if err != nil {
-			return err
-		}
+		b := tx.Bucket([]byte(usersBucket))
 
 		encoded, err := json.Marshal(user)
 		if err != nil {
@@ -257,10 +269,7 @@ func (user *User) save(db *bolt.DB) error {
 func deleteKey(db *bolt.DB, bucket, key string) error {
 	// Store the user model in the user bucket using the username as the key.
 	err := db.Update(func(tx *bolt.Tx) error {
-		b, err := tx.CreateBucket([]byte(bucket))
-		if err != nil {
-			return err
-		}
+		b := tx.Bucket([]byte(bucket))
 
 		return b.Delete([]byte(key))
 	})
@@ -311,12 +320,9 @@ func newSharedKey(db *bolt.DB, strlen int, email string) string {
 	}
 
 	err := db.Update(func(tx *bolt.Tx) error {
-		b, err := tx.CreateBucket([]byte(sharedKeysBucket))
-		if err != nil {
-			return err
-		}
+		b := tx.Bucket([]byte(sharedKeysBucket))
 
-		return b.Put([]byte(rstr), []byte(rstr))
+		return b.Put([]byte(rstr), []byte(email))
 	})
 
 	if err != nil {
