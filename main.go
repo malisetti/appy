@@ -39,6 +39,12 @@ var (
 	rxEmail = regexp.MustCompile(emailRegEx)
 )
 
+type cbUser struct {
+	Name          string   `json:"name"`
+	Password      string   `json:"password"`
+	AdminChannels []string `json:"admin_channels"`
+}
+
 type appResponse struct {
 	Message         string `json:"message"`
 	SharedSecretKey string `json:"key"`
@@ -196,17 +202,18 @@ func main() {
 		if err != nil {
 			c.JSON(http.StatusOK, &appResponse{"Please provide valid details", "", "error"})
 		} else {
+			adminChannels := []string{email, sharedSecretKey}
 			couchbaseUsers := [2]map[string]string{{"email": email, "password": password}, {"email": sharedSecretKey, "password": sharedSecretKey}}
 			var wg sync.WaitGroup
 			wg.Add(len(couchbaseUsers))
 			for _, cbUser := range couchbaseUsers {
-				go func(email, password string) {
-					err := createCouchbaseUser(email, password)
+				go func(email, password string, adminChannels []string) {
+					err := createCouchbaseUser(email, password, adminChannels)
 					if err != nil {
 						c.Logger().Error(err.Error())
 					}
 					wg.Done()
-				}(cbUser["email"], cbUser["password"])
+				}(cbUser["email"], cbUser["password"], adminChannels)
 			}
 			wg.Wait()
 
@@ -284,17 +291,13 @@ func deleteKey(db *bolt.DB, bucket, key string) error {
 	return err
 }
 
-func createCouchbaseUser(email, password string) error {
+func createCouchbaseUser(email, password string, adminChannels []string) error {
 	userCreationURL := couchbaseAdminAPI + "/appydb/_user/"
 	timeout := time.Duration(1 * time.Second)
 	client := &http.Client{
 		Timeout: timeout,
 	}
-	v := make(map[string]string)
-	v["name"] = email
-	v["password"] = password
-	v["email"] = email
-	data, _ := json.Marshal(v)
+	data, _ := json.Marshal(cbUser{email, password, adminChannels})
 	req, err := http.NewRequest(http.MethodPost, userCreationURL, bytes.NewBuffer(data))
 	req.Header.Set("Content-Type", "application/json")
 	req.SetBasicAuth(couchbaseAdminUser, couchbaseAdminPass)
