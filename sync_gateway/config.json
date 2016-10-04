@@ -15,6 +15,7 @@
           if(!doc.parent && !doc.child){
             throw({forbidden: 'No parent or child in this document'});
           }
+          requireUser([doc.parent, doc.child, 'appyadmin']);
           channel([doc.child, doc.parent]);
           access([doc.child, doc.parent]);
         }`
