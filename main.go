@@ -12,6 +12,7 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/boltdb/bolt"
@@ -195,10 +196,19 @@ func main() {
 		if err != nil {
 			c.JSON(http.StatusOK, &appResponse{"Please provide valid details", "", "error"})
 		} else {
-			//couchbase user for child
-			createCouchbaseUser(email, password)
-			//couchbase user for parent
-			createCouchbaseUser(sharedSecretKey, sharedSecretKey)
+			couchbaseUsers := [2]map[string]string{{"email": email, "password": password}, {"email": sharedSecretKey, "password": sharedSecretKey}}
+			var wg sync.WaitGroup
+			wg.Add(len(couchbaseUsers))
+			for _, cbUser := range couchbaseUsers {
+				go func(email, password string) {
+					err := createCouchbaseUser(email, password)
+					if err != nil {
+						c.Logger().Error(err.Error())
+					}
+					wg.Done()
+				}(cbUser["email"], cbUser["password"])
+			}
+			wg.Wait()
 
 			c.JSON(http.StatusCreated, &appResponse{"User created, please use key to connect", sharedSecretKey, "success"})
 		}
