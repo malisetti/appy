@@ -148,17 +148,8 @@ func main() {
 
 	e.Post("/users", func(c echo.Context) error {
 		var u InputUser
-		ct := c.Request().Header().Get("Content-Type")
-		if ct == "application/json" {
-			decoder := json.NewDecoder(c.Request().Body())
-			err := decoder.Decode(&u)
-			if err != nil {
-				return err
-			}
-		} else {
-			if err := c.Bind(u); err != nil {
-				return err
-			}
+		if err := c.Bind(&u); err != nil {
+			return err
 		}
 
 		salt := make([]byte, 32)
