@@ -12,7 +12,7 @@
         "users":{ "GUEST": { "disabled": true } },
         "bucket":"appy",
         "sync":`function(doc) {
-          if((!doc.parent && !doc.child) || !doc._deleted){
+          if(!doc._deleted && !(doc.parent && doc.child)){
             throw({forbidden: 'No parent or child in this document'});
           }
           requireUser([doc.parent, doc.child, 'appyadmin']);
